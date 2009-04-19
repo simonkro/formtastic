@@ -93,22 +93,30 @@ module Formtastic #:nodoc:
       options[:required] = method_required?(method) unless options.key?(:required)
       options[:as]     ||= default_input_type(method)
 
-      html_class = [ options[:as], (options[:required] ? :required : :optional) ]
-      html_class << 'error' if @object && @object.respond_to?(:errors) && @object.errors.on(method.to_s)
-
-      wrapper_html = options.delete(:wrapper_html) || {}
-      wrapper_html[:id]  ||= generate_html_id(method)
-      wrapper_html[:class] = (html_class << wrapper_html[:class]).flatten.compact.join(' ')
-
-      if [:boolean_select, :boolean_radio].include?(options[:as])
-        ::ActiveSupport::Deprecation.warn(":as => :#{options[:as]} is deprecated, use :as => :#{options[:as].to_s[8..-1]} instead", caller[3..-1])
+      locals = {:as => options[:as], :id => generate_html_id(method), :builder => self}
+      locals[:msgs] = errors_for(method, options)
+      locals[:hint] = options.delete(:hint)
+      locals[:method] = method
+      locals[:options] = set_options(options)
+      locals[:html_options] = options[:html_options]
+      locals[:mappings] = INPUT_MAPPINGS
+      locals[:required] = options[:required] ? :required : :optional
+      locals[:object_name] = @object.class.try(:human_name) || @object_name.to_s.send(@@label_str_method)
+      locals[:humanized_attribute_name] = humanized_attribute_name(method)
+      if [:select, :radio].include?(options[:as])
+        locals[:reflection] = reflection = find_reflection(method)
+        locals[:collection] = find_collection_for_column(method, options)
+        locals[:input_name] = generate_association_input_name(method)
+         if reflection && [:has_many, :has_and_belongs_to_many].include?(reflection.macro)
+          locals[:html_options].reverse_merge!(:multiple => true, :size => 5)
+        end
       end
 
-      list_item_content = @@inline_order.map do |type|
-        send(:"inline_#{type}_for", method, options)
-      end.compact.join("\n")
-
-      return template.content_tag(:li, list_item_content, wrapper_html)
+      if template_exists?("#{options[:as]}_input")
+        template.render :partial => "#{self.class.template_root}/#{options[:as]}_input", :locals => locals
+      else
+        template.render :partial => "#{self.class.template_root}/input", :locals => locals
+      end
     end
 
     # Creates an input fieldset and ol tag wrapping for use around a set of inputs.  It can be
@@ -323,25 +331,6 @@ module Formtastic #:nodoc:
       fields_for(record_or_name_or_array, *args, &block)
     end
 
-    # Generates the label for the input. Accepts the same arguments as Rails
-    # label method and a fourth one that allows the label to be generated
-    # as span tag with class label.
-    #
-    # :required can be also sent as option. When true, marks a filed as required,
-    # when false marks it as optional. When nil, does nothing.
-    #
-    def label(method, text, options={}, as_span=false)
-      text ||= humanized_attribute_name(method)
-      text  << required_or_optional_string(options.delete(:required))
-
-      if as_span
-        options[:class] ||= 'label'
-        template.content_tag(:span, text, options)
-      else
-        super(method, text, options)
-      end
-    end
-
     protected
 
     # Deals with :for option when it's supplied to inputs methods. Additional
@@ -396,20 +385,6 @@ module Formtastic #:nodoc:
       else
         @@all_fields_required_by_default
       end
-    end
-
-    # A method that deals with most of inputs (:string, :password, :file,
-    # :textarea and :numeric). :select, :radio, :boolean and :datetime inputs
-    # are not handled by this method, since they need more detailed approach.
-    #
-    # If input_html is given as option, it's passed down to the input.
-    #
-    def input_simple(type, method, options)
-      html_options = options.delete(:input_html) || {}
-      html_options = default_string_options(method).merge(html_options) if STRING_MAPPINGS.include?(type)
-
-      self.label(method, options.delete(:label), options.slice(:required)) +
-      self.send(INPUT_MAPPINGS[type], method, html_options)
     end
 
     # Outputs a label and a select box containing options from the parent
@@ -691,79 +666,15 @@ module Formtastic #:nodoc:
       field_set_and_list_wrapping_for_method(method, options, list_items_capture)
     end
 
-    # Outputs a label containing a checkbox and the label text. The label defaults
-    # to the column name (method name) and can be altered with the :label option.
-    # :checked_value and :unchecked_value options are also available.
-    #
-    def boolean_input(method, options)
-      html_options = options.delete(:input_html) || {}
-
-      input = self.check_box(method, set_options(options).merge(html_options),
-                             options.delete(:checked_value) || '1', options.delete(:unchecked_value) || '0')
-
-      label = options.delete(:label) || humanized_attribute_name(method)
-      self.label(method, input + label, options.slice(:required))
-    end
-
-    # Generates an input for the given method using the type supplied with :as.
-    #
-    # If the input is included in INPUT_MAPPINGS, it uses input_simple
-    # implementation which maps most of the inputs. All others have specific
-    # code and then a proper handler should be called (like radio_input) for
-    # :radio types.
-    #
-    def inline_input_for(method, options)
-      input_type = options.delete(:as)
-
-      if INPUT_MAPPINGS.key?(input_type)
-        input_simple(input_type,  method, options)
-      else
-        send("#{input_type}_input", method, options)
-      end
-    end
-
     # Generates error messages for the given method. Errors can be shown as list
-    # or as sentence. If :none is set, no error is shown.
+    # or as sentence.
     #
-    def inline_errors_for(method, options)  #:nodoc:
-      return nil unless @object && @object.respond_to?(:errors) && [:sentence, :list].include?(@@inline_errors)
+    def errors_for(method, options)  #:nodoc:
+      return nil unless @object && @object.respond_to?(:errors)
 
       # Ruby 1.9: Strings are not Enumerable, ie no String#to_a
       errors = @object.errors.on(method.to_s)
-      unless errors.respond_to?(:to_a)
-        errors = [errors]
-      else
-        errors = errors.to_a
-      end
-      locals = {:object => @object, :msgs => errors, :options => options}
-      template.render(:partial => "#{self.class.template_root}/errors", :locals => locals) unless errors.empty?
-    end
-
-    # Generates hints for the given method using the text supplied in :hint.
-    #
-    def inline_hints_for(method, options) #:nodoc:
-      return if options[:hint].blank?
-      template.content_tag(:p, options[:hint], :class => 'inline-hints')
-    end
-
-    # Generates the required or optional string. If the value set is a proc,
-    # it evaluates the proc first.
-    #
-    def required_or_optional_string(required) #:nodoc:
-      string_or_proc = case required
-        when true
-          @@required_string
-        when false
-          @@optional_string
-        else
-          required
-      end
-
-      if string_or_proc.is_a?(Proc)
-        string_or_proc.call
-      else
-        string_or_proc.to_s
-      end
+      errors.respond_to?(:to_a) ? errors.to_a : [errors]
     end
 
     # Generates a fieldset and wraps the content in an ordered list. When working
@@ -785,7 +696,7 @@ module Formtastic #:nodoc:
       # Ruby 1.9: String#to_s behavior changed, need to make an explicit join.
       contents = contents.join if contents.respond_to?(:join)
       fieldset = template.content_tag(:fieldset,
-        legend + template.content_tag(:ol, contents),
+        legend + template.content_tag(:div, contents),
         html_options.except(:builder, :parent)
       )
 
@@ -799,7 +710,7 @@ module Formtastic #:nodoc:
     def field_set_and_list_wrapping_for_method(method, options, contents)
       template.content_tag(:fieldset,
         %{<legend>#{self.label(method, options.delete(:label), options.slice(:required), true)}</legend>} +
-        template.content_tag(:ol, contents)
+        template.content_tag(:div, contents)
       )
     end
 
