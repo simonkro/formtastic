@@ -279,26 +279,17 @@ module Formtastic #:nodoc:
     end
     alias :button_field_set :buttons
 
-    # Creates a submit input tag with the value "Save [model name]" (for existing records) or
-    # "Create [model name]" (for new records) by default:
-    #
-    #   <%= form.commit_button %> => <input name="commit" type="submit" value="Save Post" />
-    #
-    # The value of the button text can be overridden:
-    #
-    #  <%= form.commit_button "Go" %> => <input name="commit" type="submit" value="Go" />
-    #
-
-
+    # Creates a button tag using a template with the same name as the button or the generic
+    # _button.html.erb / _button.html.haml if no special template is found
     def method_missing_with_button_handling(symbol, *args, &block)
       if symbol.to_s =~ /^(.*)_button$/
         locals = {:object => @object, :builder => self, :button_name => $1}
         locals[:new_record]  = @object.try(:new_record?)
         locals[:object_name] = @object.class.try(:human_name) || @object_name.to_s.send(@@label_str_method)
         if template_exists?("#{$1}_button")
-          @template.render :partial => "#{self.class.template_root}/#{$1}_button", :locals => locals
+          template.render :partial => "#{self.class.template_root}/#{$1}_button", :locals => locals
         else
-          @template.render :partial => "#{self.class.template_root}/button", :locals => locals
+          template.render :partial => "#{self.class.template_root}/button", :locals => locals
         end
       else
         method_missing_without_button_handling symbol, *args, &block
@@ -380,23 +371,6 @@ module Formtastic #:nodoc:
     def set_options(options)
       options.except(:value_method, :label_method, :collection, :required, :label,
                      :as, :hint, :input_html, :label_html, :value_as_class)
-    end
-
-    # Create a default button text. If the form is working with a object, it
-    # defaults to "Create model" or "Save model" depending if we are working
-    # with a new_record or not.
-    #
-    # When not working with models, it defaults to "Submit object".
-    #
-    def save_or_create_button_text(prefix='Submit') #:nodoc:
-      if @object
-        prefix      = @object.new_record? ? 'Create' : 'Save'
-        object_name = @object.class.human_name
-      else
-        object_name = @object_name.to_s.send(@@label_str_method)
-      end
-
-      I18n.t(prefix.downcase, :default => prefix, :scope => [:formtastic]) << ' ' << object_name
     end
 
     # Determins if the attribute (eg :title) should be considered required or not.
@@ -761,8 +735,8 @@ module Formtastic #:nodoc:
       else
         errors = errors.to_a
       end
-
-      send("error_#{@@inline_errors}", errors) unless errors.empty?
+      locals = {:object => @object, :msgs => errors, :options => options}
+      template.render(:partial => "#{self.class.template_root}/errors", :locals => locals) unless errors.empty?
     end
 
     # Generates hints for the given method using the text supplied in :hint.
@@ -770,22 +744,6 @@ module Formtastic #:nodoc:
     def inline_hints_for(method, options) #:nodoc:
       return if options[:hint].blank?
       template.content_tag(:p, options[:hint], :class => 'inline-hints')
-    end
-
-    # Creates an error sentence by calling to_sentence on the errors array.
-    #
-    def error_sentence(errors) #:nodoc:
-      template.content_tag(:p, errors.to_sentence, :class => 'inline-errors')
-    end
-
-    # Creates an error li list.
-    #
-    def error_list(errors) #:nodoc:
-      list_elements = []
-      errors.each do |error|
-        list_elements <<  template.content_tag(:li, error)
-      end
-      template.content_tag(:ul, list_elements.join("\n"), :class => 'errors')
     end
 
     # Generates the required or optional string. If the value set is a proc,
