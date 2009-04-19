@@ -103,7 +103,10 @@ module Formtastic #:nodoc:
       locals[:required] = options[:required] ? :required : :optional
       locals[:object_name] = @object.class.try(:human_name) || @object_name.to_s.send(@@label_str_method)
       locals[:humanized_attribute_name] = humanized_attribute_name(method)
-      if [:select, :radio].include?(options[:as])
+      if options[:as] == :boolean
+        locals[:checked_value] = options[:checked_value] || '1'
+        locals[:unchecked_value] = options[:unchecked_value] || '0'
+      elsif [:select, :radio].include?(options[:as])
         locals[:reflection] = reflection = find_reflection(method)
         locals[:collection] = find_collection_for_column(method, options)
         locals[:input_name] = generate_association_input_name(method)
@@ -386,100 +389,6 @@ module Formtastic #:nodoc:
         @@all_fields_required_by_default
       end
     end
-
-    # Outputs a label and a select box containing options from the parent
-    # (belongs_to, has_many, has_and_belongs_to_many) association. If an association
-    # is has_many or has_and_belongs_to_many the select box will be set as multi-select
-    # and size = 5
-    #
-    # Example (belongs_to):
-    #
-    #   f.input :author
-    #
-    #   <label for="book_author_id">Author</label>
-    #   <select id="book_author_id" name="book[author_id]">
-    #     <option value="1">Justin French</option>
-    #     <option value="2">Jane Doe</option>
-    #   </select>
-    #
-    # Example (has_many):
-    #
-    #   f.input :chapters
-    #
-    #   <label for="book_chapter_ids">Chapters</label>
-    #   <select id="book_chapter_ids" name="book[chapter_ids]">
-    #     <option value="1">Chapter 1</option>
-    #     <option value="2">Chapter 2</option>
-    #   </select>
-    #
-    # Example (has_and_belongs_to_many):
-    #
-    #   f.input :authors
-    #
-    #   <label for="book_author_ids">Authors</label>
-    #   <select id="book_author_ids" name="book[author_ids]">
-    #     <option value="1">Justin French</option>
-    #     <option value="2">Jane Doe</option>
-    #   </select>
-    #
-    #
-    # You can customize the options available in the select by passing in a collection (Array) of
-    # ActiveRecord objects through the :collection option.  If not provided, the choices are found
-    # by inferring the parent's class name from the method name and simply calling find(:all) on
-    # it (VehicleOwner.find(:all) in the example above).
-    #
-    # Examples:
-    #
-    #   f.input :author, :collection => @authors
-    #   f.input :author, :collection => Author.find(:all)
-    #   f.input :author, :collection => [@justin, @kate]
-    #   f.input :author, :collection => {@justin.name => @justin.id, @kate.name => @kate.id}
-    #
-    # Note: This input looks for a label method in the parent association.
-    #
-    # You can customize the text label inside each option tag, by naming the correct method
-    # (:full_name, :display_name, :account_number, etc) to call on each object in the collection
-    # by passing in the :label_method option.  By default the :label_method is whichever element of
-    # Formtastic::SemanticFormBuilder.collection_label_methods is found first.
-    #
-    # Examples:
-    #
-    #   f.input :author, :label_method => :full_name
-    #   f.input :author, :label_method => :display_name
-    #   f.input :author, :label_method => :to_s
-    #   f.input :author, :label_method => :label
-    #
-    # You can also customize the value inside each option tag, by passing in the :value_method option.
-    # Usage is the same as the :label_method option
-    #
-    # Examples:
-    #
-    #   f.input :author, :value_method => :full_name
-    #   f.input :author, :value_method => :display_name
-    #   f.input :author, :value_method => :to_s
-    #   f.input :author, :value_method => :value
-    #
-    # You can pass html_options to the select tag using :input_html => {}
-    #
-    # Examples:
-    #
-    #   f.input :authors, :input_html => {:size => 20, :multiple => true}
-    #
-    def select_input(method, options)
-      collection = find_collection_for_column(method, options)
-      html_options = options.delete(:input_html) || {}
-
-      reflection = find_reflection(method)
-      if reflection && [ :has_many, :has_and_belongs_to_many ].include?(reflection.macro)
-        html_options[:multiple] ||= true
-        html_options[:size]     ||= 5
-       end
-
-      input_name = generate_association_input_name(method)
-      self.label(input_name, options.delete(:label), options.slice(:required)) +
-      self.select(input_name, collection, set_options(options), html_options)
-    end
-    alias :boolean_select_input :select_input
 
     # Outputs a timezone select input as Rails' time_zone_select helper. You
     # can give priority zones as option.
