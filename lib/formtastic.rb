@@ -98,7 +98,7 @@ module Formtastic #:nodoc:
       locals[:hint] = options.delete(:hint)
       locals[:method] = method
       locals[:options] = set_options(options)
-      locals[:html_options] = options[:html_options]
+      locals[:html_options] = options[:html_options] || {}
       locals[:mappings] = INPUT_MAPPINGS
       locals[:required] = options[:required] ? :required : :optional
       locals[:object_name] = @object.class.try(:human_name) || @object_name.to_s.send(@@label_str_method)
@@ -111,7 +111,7 @@ module Formtastic #:nodoc:
         locals[:collection] = find_collection_for_column(method, options)
         locals[:input_name] = generate_association_input_name(method)
          if reflection && [:has_many, :has_and_belongs_to_many].include?(reflection.macro)
-          locals[:html_options].reverse_merge!(:multiple => true, :size => 5)
+           locals[:html_options].reverse_merge!(:multiple => true, :size => 5)
         end
       end
 
@@ -724,7 +724,8 @@ module Formtastic #:nodoc:
     #
     def generate_association_input_name(method)
       if reflection = find_reflection(method)
-        method = "#{method.to_s.singularize}_id"
+        method = method.to_s.singularize if [:has_and_belongs_to_many, :has_many].include?(reflection.macro)
+        method = "#{method}_id"
         method = method.pluralize if [:has_and_belongs_to_many, :has_many].include?(reflection.macro)
       end
       method
