@@ -19,9 +19,11 @@ module Formtastic #:nodoc:
     @@inline_order = [ :input, :hints, :errors ]
     @@file_methods = [ :file?, :public_filename ]
 
+    @@template_root = File.join(Rails.configuration.view_path, 'forms')
+
     cattr_accessor :default_text_field_size, :all_fields_required_by_default, :required_string,
                    :optional_string, :inline_errors, :label_str_method, :collection_label_methods,
-                   :inline_order, :file_methods
+                   :inline_order, :file_methods, :template_root
 
     # Keeps simple mappings in a hash
     #
@@ -35,6 +37,16 @@ module Formtastic #:nodoc:
     STRING_MAPPINGS = [ :string, :password, :numeric ]
 
     attr_accessor :template
+
+    # render(:partial => '...') doesn't want the full path of the template
+    def self.template_root(full_path = false)
+      full_path ? @@template_root : @@template_root.gsub(Rails.configuration.view_path + '/', '')
+    end
+
+    # checks to make sure the template exists
+    def template_exists?(template)
+      !Dir[File.join(self.class.template_root(true), "_#{template}.html.*")].blank?
+    end
 
     # Returns a suitable form input for the given +method+, using the database column information
     # and other factors (like the method name) to figure out what you probably want.
@@ -276,11 +288,23 @@ module Formtastic #:nodoc:
     #
     #  <%= form.commit_button "Go" %> => <input name="commit" type="submit" value="Go" />
     #
-    def commit_button(value=nil, options={})
-      value     ||= save_or_create_button_text
-      button_html = options.delete(:button_html) || {}
-      template.content_tag(:li, self.submit(value, button_html), :class => "commit")
+
+
+    def method_missing_with_button_handling(symbol, *args, &block)
+      if symbol.to_s =~ /^(.*)_button$/
+        locals = {:object => @object, :builder => self, :button_name => $1}
+        locals[:new_record]  = @object.try(:new_record?)
+        locals[:object_name] = @object.class.try(:human_name) || @object_name.to_s.send(@@label_str_method)
+        if template_exists?("#{$1}_button")
+          @template.render :partial => "#{self.class.template_root}/#{$1}_button", :locals => locals
+        else
+          @template.render :partial => "#{self.class.template_root}/button", :locals => locals
+        end
+      else
+        method_missing_without_button_handling symbol, *args, &block
+      end
     end
+    alias_method_chain :method_missing, :button_handling
 
     # A thin wrapper around #fields_for to set :builder => Formtastic::SemanticFormBuilder
     # for nesting forms:
@@ -1067,3 +1091,4 @@ module Formtastic #:nodoc:
     end
   end
 end
+
