@@ -25,17 +25,6 @@ module Formtastic #:nodoc:
                    :optional_string, :inline_errors, :label_str_method, :collection_label_methods,
                    :inline_order, :file_methods, :template_root
 
-    # Keeps simple mappings in a hash
-    #
-    INPUT_MAPPINGS = {
-      :string   => :text_field,
-      :password => :password_field,
-      :numeric  => :text_field,
-      :text     => :text_area,
-      :file     => :file_field
-    }
-    STRING_MAPPINGS = [ :string, :password, :numeric ]
-
     attr_accessor :template
 
     # render(:partial => '...') doesn't want the full path of the template
@@ -96,22 +85,23 @@ module Formtastic #:nodoc:
       locals = {:as => options[:as], :id => generate_html_id(method), :builder => self}
       locals[:msgs] = errors_for(method, options)
       locals[:hint] = options.delete(:hint)
+      locals[:html] = options[:html_options] || {}
       locals[:method] = method
       locals[:options] = set_options(options)
-      locals[:html_options] = options[:html_options] || {}
-      locals[:mappings] = INPUT_MAPPINGS
       locals[:required] = options[:required] ? :required : :optional
       locals[:object_name] = @object.class.try(:human_name) || @object_name.to_s.send(@@label_str_method)
       locals[:humanized_attribute_name] = humanized_attribute_name(method)
+
+      locals[:reflection] = reflection = find_reflection(method)
+      locals[:collection] = find_collection_for_column(method, options)
+      locals[:input_name] = generate_association_input_name(method)
+
       if options[:as] == :boolean
         locals[:checked_value] = options[:checked_value] || '1'
         locals[:unchecked_value] = options[:unchecked_value] || '0'
       elsif [:select, :radio].include?(options[:as])
-        locals[:reflection] = reflection = find_reflection(method)
-        locals[:collection] = find_collection_for_column(method, options)
-        locals[:input_name] = generate_association_input_name(method)
-         if reflection && [:has_many, :has_and_belongs_to_many].include?(reflection.macro)
-           locals[:html_options].reverse_merge!(:multiple => true, :size => 5)
+        if reflection && [:has_many, :has_and_belongs_to_many].include?(reflection.macro)
+          locals[:html].reverse_merge!(:multiple => true, :size => 5)
         end
       end
 
@@ -404,78 +394,6 @@ module Formtastic #:nodoc:
       self.time_zone_select(method, options.delete(:priority_zones), set_options(options), html_options)
     end
 
-    # Outputs a fieldset containing a legend for the label text, and an ordered list (ol) of list
-    # items, one for each possible choice in the belongs_to association.  Each li contains a
-    # label and a radio input.
-    #
-    # Example:
-    #
-    #   f.input :author, :as => :radio
-    #
-    # Output:
-    #
-    #   <fieldset>
-    #     <legend><span>Author</span></legend>
-    #     <ol>
-    #       <li>
-    #         <label for="book_author_id_1"><input id="book_author_id_1" name="book[author_id]" type="radio" value="1" /> Justin French</label>
-    #       </li>
-    #       <li>
-    #         <label for="book_author_id_2"><input id="book_author_id_2" name="book[owner_id]" type="radio" value="2" /> Kate French</label>
-    #       </li>
-    #     </ol>
-    #   </fieldset>
-    #
-    # You can customize the options available in the set by passing in a collection (Array) of
-    # ActiveRecord objects through the :collection option.  If not provided, the choices are found
-    # by inferring the parent's class name from the method name and simply calling find(:all) on
-    # it (VehicleOwner.find(:all) in the example above).
-    #
-    # Examples:
-    #
-    #   f.input :author, :as => :radio, :collection => @authors
-    #   f.input :author, :as => :radio, :collection => Author.find(:all)
-    #   f.input :author, :as => :radio, :collection => [@justin, @kate]
-    #
-    # You can also customize the text label inside each option tag, by naming the correct method
-    # (:full_name, :display_name, :account_number, etc) to call on each object in the collection
-    # by passing in the :label_method option.  By default the :label_method is whichever element of
-    # Formtastic::SemanticFormBuilder.collection_label_methods is found first.
-    #
-    # Examples:
-    #
-    #   f.input :author, :as => :radio, :label_method => :full_name
-    #   f.input :author, :as => :radio, :label_method => :display_name
-    #   f.input :author, :as => :radio, :label_method => :to_s
-    #   f.input :author, :as => :radio, :label_method => :label
-    #
-    # Finally, you can set :value_as_class => true if you want that LI wrappers
-    # contains a class with the wrapped radio input value.
-    #
-    def radio_input(method, options)
-      collection   = find_collection_for_column(method, options)
-      html_options = set_options(options).merge(options.delete(:input_html) || {})
-
-      input_name = generate_association_input_name(method)
-      value_as_class = options.delete(:value_as_class)
-
-      list_item_content = collection.map do |c|
-        label = c.is_a?(Array) ? c.first : c
-        value = c.is_a?(Array) ? c.last  : c
-
-        li_content = template.content_tag(:label,
-          "#{self.radio_button(input_name, value, html_options)} #{label}",
-          :for => generate_html_id(input_name, value.to_s.downcase)
-        )
-
-        li_options = value_as_class ? { :class => value.to_s.downcase } : {}
-        template.content_tag(:li, li_content, li_options)
-      end
-
-      field_set_and_list_wrapping_for_method(method, options, list_item_content)
-    end
-    alias :boolean_radio_input :radio_input
-
     # Outputs a fieldset with a legend for the method label, and a ordered list (ol) of list
     # items (li), one for each fragment for the date (year, month, day).  Each li contains a label
     # (eg "Year") and a select box.  See date_or_datetime_input for a more detailed output example.
@@ -598,19 +516,10 @@ module Formtastic #:nodoc:
     def field_set_and_list_wrapping(html_options, contents='', &block) #:nodoc:
       legend  = html_options.delete(:name).to_s
       legend %= parent_child_index(html_options[:parent]) if html_options[:parent]
-      legend  = template.content_tag(:legend, template.content_tag(:span, legend)) unless legend.blank?
-
-      contents = template.capture(&block) if block_given?
-
-      # Ruby 1.9: String#to_s behavior changed, need to make an explicit join.
-      contents = contents.join if contents.respond_to?(:join)
-      fieldset = template.content_tag(:fieldset,
-        legend + template.content_tag(:div, contents),
-        html_options.except(:builder, :parent)
-      )
-
-      template.concat(fieldset) if block_given?
-      fieldset
+      locals = {:html => html_options, :legend => legend}
+      block = lambda { contents } unless block_given?
+      template.render :layout => "#{self.class.template_root}/fieldset", :locals => locals, &block
+      nil # don't return the rendered partial - it has already been rendered
     end
 
     # Also generates a fieldset and an ordered list but with label based in
@@ -736,19 +645,6 @@ module Formtastic #:nodoc:
     #
     def find_reflection(method)
       @object.class.reflect_on_association(method) if @object.class.respond_to?(:reflect_on_association)
-    end
-
-    # Generates default_string_options by retrieving column information from
-    # the database.
-    #
-    def default_string_options(method) #:nodoc:
-      column = @object.column_for_attribute(method) if @object.respond_to?(:column_for_attribute)
-
-      if column.nil? || column.limit.nil?
-        { :size => @@default_text_field_size }
-      else
-        { :maxlength => column.limit, :size => [column.limit, @@default_text_field_size].min }
-      end
     end
 
     # Generate the html id for the li tag.
