@@ -1,5 +1,4 @@
 %fieldset{:class => html[:class]}
   - unless legend.blank?
-    %legend
-      %span= legend
+    %legend= legend
   = yield

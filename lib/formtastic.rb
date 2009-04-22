@@ -247,7 +247,7 @@ module Formtastic #:nodoc:
       if html_options[:for]
         inputs_for_nested_attributes(args, html_options, &block)
       elsif block_given?
-        field_set_and_list_wrapping(html_options, &block)
+        field_set_and_list_wrapping(:input, html_options, &block)
       else
         if @object && args.empty?
           args  = @object.class.reflections.map { |n,_| n if _.macro == :belongs_to }
@@ -257,7 +257,7 @@ module Formtastic #:nodoc:
         end
         contents = args.map { |method| input(method.to_sym) }
 
-        field_set_and_list_wrapping(html_options, contents)
+        field_set_and_list_wrapping(:input, html_options, contents)
       end
     end
     alias :input_field_set :inputs
@@ -272,11 +272,11 @@ module Formtastic #:nodoc:
       html_options[:class] ||= "buttons"
 
       if block_given?
-        field_set_and_list_wrapping(html_options, &block)
+        field_set_and_list_wrapping(:button, html_options, &block)
       else
         args = [:commit] if args.empty?
         contents = args.map { |button_name| send(:"#{button_name}_button") }
-        field_set_and_list_wrapping(html_options, contents)
+        field_set_and_list_wrapping(:button, contents)
       end
     end
     alias :button_field_set :buttons
@@ -401,23 +401,13 @@ module Formtastic #:nodoc:
     # And it will generate a fieldset for each task with legend 'Task #1', 'Task #2',
     # 'Task #3' and so on.
     #
-    def field_set_and_list_wrapping(html_options, contents='', &block) #:nodoc:
+    def field_set_and_list_wrapping(wrapper, html_options, contents='', &block) #:nodoc:
       legend  = html_options.delete(:name).to_s
       legend %= parent_child_index(html_options[:parent]) if html_options[:parent]
       locals = {:html => html_options, :legend => legend}
       block = lambda { contents } unless block_given?
-      template.render :layout => "#{self.class.template_root}/fieldset", :locals => locals, &block
+      template.render :layout => "#{self.class.template_root}/#{wrapper}_wrapper", :locals => locals, &block
       nil # don't return the rendered partial - it has already been rendered
-    end
-
-    # Also generates a fieldset and an ordered list but with label based in
-    # method. This methods is currently used by radio and datetime inputs.
-    #
-    def field_set_and_list_wrapping_for_method(method, options, contents)
-      template.content_tag(:fieldset,
-        %{<legend>#{self.label(method, options.delete(:label), options.slice(:required), true)}</legend>} +
-        template.content_tag(:div, contents)
-      )
     end
 
     # For methods that have a database column, take a best guess as to what the input method
