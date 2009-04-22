@@ -1,5 +1,0 @@
-%div{:id => id, :class => "#{as} #{required} field#{' field-error' unless msgs.blank?}"}
-  = builder.label method, humanized_attribute_name
-  = builder.select input_name, collection, options, html
-  - unless msgs.blank?
-    %span.error-hint= msgs.first

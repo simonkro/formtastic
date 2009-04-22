@@ -1,4 +1,4 @@
-# this is 'borrowed' from
+# this is 'borrowed' from Ryan Heath's form_assistant
 
 desc "copies basic form templates to app/views/forms"
 namespace :formtastic do

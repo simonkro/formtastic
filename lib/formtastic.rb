@@ -89,6 +89,7 @@ module Formtastic #:nodoc:
       locals[:method] = method
       locals[:options] = set_options(options)
       locals[:required] = options[:required] ? :required : :optional
+      locals[:priority_zones] = options.delete(:priority_zones)
       locals[:object_name] = @object.class.try(:human_name) || @object_name.to_s.send(@@label_str_method)
       locals[:humanized_attribute_name] = humanized_attribute_name(method)
 
@@ -378,119 +379,6 @@ module Formtastic #:nodoc:
       else
         @@all_fields_required_by_default
       end
-    end
-
-    # Outputs a timezone select input as Rails' time_zone_select helper. You
-    # can give priority zones as option.
-    #
-    # Examples:
-    #
-    #   f.input :time_zone, :as => :time_zone, :priority_zones => /Australia/
-    #
-    def time_zone_input(method, options)
-      html_options = options.delete(:input_html) || {}
-
-      self.label(method, options.delete(:label), options.slice(:required)) +
-      self.time_zone_select(method, options.delete(:priority_zones), set_options(options), html_options)
-    end
-
-    # Outputs a fieldset with a legend for the method label, and a ordered list (ol) of list
-    # items (li), one for each fragment for the date (year, month, day).  Each li contains a label
-    # (eg "Year") and a select box.  See date_or_datetime_input for a more detailed output example.
-    #
-    # Some of Rails' options for select_date are supported, but not everything yet.
-    def date_input(method, options)
-      date_or_datetime_input(method, options.merge(:discard_hour => true))
-    end
-
-
-    # Outputs a fieldset with a legend for the method label, and a ordered list (ol) of list
-    # items (li), one for each fragment for the date (year, month, day, hour, min, sec).  Each li
-    # contains a label (eg "Year") and a select box.  See date_or_datetime_input for a more
-    # detailed output example.
-    #
-    # Some of Rails' options for select_date are supported, but not everything yet.
-    def datetime_input(method, options)
-      date_or_datetime_input(method, options)
-    end
-
-
-    # Outputs a fieldset with a legend for the method label, and a ordered list (ol) of list
-    # items (li), one for each fragment for the time (hour, minute, second).  Each li contains a label
-    # (eg "Hour") and a select box.  See date_or_datetime_input for a more detailed output example.
-    #
-    # Some of Rails' options for select_time are supported, but not everything yet.
-    def time_input(method, options)
-      date_or_datetime_input(method, options.merge(:discard_year => true, :discard_month => true, :discard_day => true))
-    end
-
-
-    # <fieldset>
-    #   <legend>Created At</legend>
-    #   <ol>
-    #     <li>
-    #       <label for="user_created_at_1i">Year</label>
-    #       <select id="user_created_at_1i" name="user[created_at(1i)]">
-    #         <option value="2003">2003</option>
-    #         ...
-    #         <option value="2013">2013</option>
-    #       </select>
-    #     </li>
-    #     <li>
-    #       <label for="user_created_at_2i">Month</label>
-    #       <select id="user_created_at_2i" name="user[created_at(2i)]">
-    #         <option value="1">January</option>
-    #         ...
-    #         <option value="12">December</option>
-    #       </select>
-    #     </li>
-    #     <li>
-    #       <label for="user_created_at_3i">Day</label>
-    #       <select id="user_created_at_3i" name="user[created_at(3i)]">
-    #         <option value="1">1</option>
-    #         ...
-    #         <option value="31">31</option>
-    #       </select>
-    #     </li>
-    #   </ol>
-    # </fieldset>
-    #
-    # This is an absolute abomination, but so is the official Rails select_date().
-    #
-    def date_or_datetime_input(method, options)
-      position = { :year => 1, :month => 2, :day => 3, :hour => 4, :minute => 5, :second => 6 }
-      inputs   = options.delete(:order) || I18n.translate(:'date.order') || [:year, :month, :day]
-
-      time_inputs = [:hour, :minute]
-      time_inputs << [:second] if options[:include_seconds]
-
-      list_items_capture = ""
-
-      # Gets the datetime object. It can be a Fixnum, Date or Time, or nil.
-      datetime     = @object ? @object.send(method) : nil
-      html_options = options.delete(:input_html) || {}
-
-      (inputs + time_inputs).each do |input|
-        html_id    = generate_html_id(method, "#{position[input]}i")
-        field_name = "#{method}(#{position[input]}i)"
-
-        list_items_capture << if options["discard_#{input}".intern]
-          break if time_inputs.include?(input)
-
-          hidden_value = datetime.respond_to?(input) ? datetime.send(input) : datetime
-          template.hidden_field_tag("#{@object_name}[#{field_name}]", (hidden_value || 1), :id => html_id)
-        else
-          opts = set_options(options).merge(:prefix => @object_name, :field_name => field_name)
-          item_label_text = I18n.t(input.to_s, :default => input.to_s.humanize, :scope => [:datetime, :prompts])
-
-          template.content_tag(:li,
-            template.content_tag(:label, item_label_text, :for => html_id) +
-            template.send("select_#{input}".intern, datetime, opts, html_options.merge(:id => html_id))
-          )
-        end
-      end
-
-      field_set_and_list_wrapping_for_method(method, options, list_items_capture)
     end
 
     # Generates error messages for the given method. Errors can be shown as list

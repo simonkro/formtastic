@@ -3,8 +3,8 @@
 
   .radio-options
     - collection.each do |label, value| value ||= label
-      = builder.radio_button method, value
-      = builder.label "#{method}_#{value}", label
+      = builder.radio_button input_name, value
+      = builder.label "#{input_name}_#{value}", label
 
   - unless msgs.blank?
     %span.error-hint= msgs.first

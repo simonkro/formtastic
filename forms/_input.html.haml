@@ -1,11 +1,16 @@
 %div{:id => id, :class => "#{as} #{required} field#{' field-error' unless msgs.blank?}"}
   = builder.label method, humanized_attribute_name
   = case as
-    - when :string then builder.text_field method
-    - when :password then builder.password_field method
-    - when :numeric then builder.text_field method
-    - when :text then builder.text_area method
-    - when :file then builder.file_field method
+    - when :string then builder.text_field input_name
+    - when :password then builder.password_field input_name
+    - when :numeric then builder.text_field input_name
+    - when :text then builder.text_area input_name
+    - when :file then builder.file_field input_name
+    - when :time then builder.time_select input_name, options, html
+    - when :date then builder.date_select input_name, options, html
+    - when :datetime then builder.datetime_select input_name, options, html
+    - when :select then builder.select input_name, collection, options, html
+    - when :time_zone then builder.time_zone_select input_name, priority_zones, options, html
   - if required == :required
     %span.required-icon.tooltip Required
   - unless msgs.blank?
