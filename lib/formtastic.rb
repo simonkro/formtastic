@@ -85,7 +85,7 @@ module Formtastic #:nodoc:
       locals = {:as => options[:as], :id => generate_html_id(method), :builder => self}
       locals[:msgs] = errors_for(method, options)
       locals[:hint] = options.delete(:hint)
-      locals[:html] = options[:html_options] || {}
+      locals[:html] = options[:input_html] || {}
       locals[:method] = method
       locals[:options] = set_options(options)
       locals[:required] = options[:required] ? :required : :optional
@@ -104,6 +104,10 @@ module Formtastic #:nodoc:
         if reflection && [:has_many, :has_and_belongs_to_many].include?(reflection.macro)
           locals[:html].reverse_merge!(:multiple => true, :size => 5)
         end
+      end
+
+      if locals[:as] == :text
+        p(locals[:html])
       end
 
       if template_exists?("#{options[:as]}_input")
