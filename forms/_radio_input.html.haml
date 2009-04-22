@@ -1,0 +1,10 @@
+%div{:id => id, :class => "#{as} #{required} field#{' field-error' unless msgs.blank?}"}
+  = builder.label method, humanized_attribute_name
+
+  .radio-options
+    - collection.each do |label, value| value ||= label
+      = builder.radio_button method, value
+      = builder.label "#{method}_#{value}", label
+
+  - unless msgs.blank?
+    %span.error-hint= msgs.first
