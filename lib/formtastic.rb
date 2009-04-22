@@ -276,7 +276,7 @@ module Formtastic #:nodoc:
       else
         args = [:commit] if args.empty?
         contents = args.map { |button_name| send(:"#{button_name}_button") }
-        field_set_and_list_wrapping(:button, contents)
+        field_set_and_list_wrapping(:button, html_options, contents)
       end
     end
     alias :button_field_set :buttons
