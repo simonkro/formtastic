@@ -17,8 +17,11 @@ and the fallback is <pre>_button.html.erb</pre>
 
 You can define as much buttons as you like and use them just like <pre>form.login_button</pre>
 
-*NEW*: there are templates for the wrappers too. They are called <pre>_input_wrapper.*</pre> and <pre>_button_wrapper.*</pre> both fallback on <pre>_wrapper.*</pre>.
+*NEW*: there are templates for the wrappers too. They are called <pre>_input_wrapper.html...</pre> and <pre>_button_wrapper.html...</pre> both fallback on <pre>_wrapper.html...</pre>.
 These wrappers have to yield where the content should be placed.
+
+If you want to create a new input control just define the <pre>_crazy_input.html.erb</pre> partial and use <pre><%= form.input :some_attribute, :as => :crazy %></pre>
+in your view.
 
 For now this is a work in progress - there may be not enough info passed to the partials to enable every thinkable control - but it works - for me :)
 

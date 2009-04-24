@@ -20,22 +20,6 @@ module Formtastic #:nodoc:
 
     attr_accessor :template
 
-    # render(:partial => '...') doesn't want the full path of the template
-    def self.template_root(full_path = false)
-      full_path ? @@template_root : @@template_root.gsub(Rails.configuration.view_path + '/', '')
-    end
-
-    # checks to make sure the template exists
-    def template_exists?(template)
-      !Dir[File.join(self.class.template_root(true), "_#{template}.html.*")].blank?
-    end
-
-    # returns the first template found
-    def find_template(*choices)
-      choice = choices.find{|t| template_exists?(t)}
-      choice && File.join(self.class.template_root, choice)
-    end
-
     # Returns a suitable form input for the given +method+, using the database column information
     # and other factors (like the method name) to figure out what you probably want.
     #
@@ -92,7 +76,7 @@ module Formtastic #:nodoc:
         :input_options => {}
       }.merge(options)
 
-      template.render :partial => find_template("#{options[:as]}_input", "input"), :locals => locals
+      template.render :partial => find_template("#{locals[:as]}_input", "input"), :locals => locals
     end
 
     # Creates an input fieldset and ol tag wrapping for use around a set of inputs.  It can be
@@ -302,6 +286,22 @@ module Formtastic #:nodoc:
     end
 
     protected
+
+    # render(:partial => '...') doesn't want the full path of the template
+    def self.template_root(full_path = false)
+      full_path ? @@template_root : @@template_root.gsub(Rails.configuration.view_path + '/', '')
+    end
+
+    # checks to make sure the template exists
+    def template_exists?(template)
+      !Dir[File.join(self.class.template_root(true), "_#{template}.html.*")].blank?
+    end
+
+    # returns the first template found
+    def find_template(*choices)
+      choice = choices.find{|t| template_exists?(t)}
+      File.join(self.class.template_root, choice || choices.first)
+    end
 
     # Deals with :for option when it's supplied to inputs methods. Additional
     # options to be passed down to :for should be supplied using :for_options
