@@ -9,21 +9,14 @@ module Formtastic #:nodoc:
 
   class SemanticFormBuilder < ActionView::Helpers::FormBuilder
 
-    @@default_text_field_size = 50
     @@all_fields_required_by_default = true
-    @@required_string = proc { %{<abbr title="#{I18n.t 'formtastic.required', :default => 'required'}">*</abbr>} }
-    @@optional_string = ''
-    @@inline_errors = :sentence
     @@label_str_method = :humanize
     @@collection_label_methods = %w[to_label display_name full_name name title username login value to_s]
-    @@inline_order = [ :input, :hints, :errors ]
     @@file_methods = [ :file?, :public_filename ]
-
     @@template_root = File.join(Rails.configuration.view_path, 'forms')
 
-    cattr_accessor :default_text_field_size, :all_fields_required_by_default, :required_string,
-                   :optional_string, :inline_errors, :label_str_method, :collection_label_methods,
-                   :inline_order, :file_methods, :template_root
+    cattr_accessor :all_fields_required_by_default, :label_str_method,
+      :collection_label_methods, :file_methods, :template_root
 
     attr_accessor :template
 
@@ -35,6 +28,12 @@ module Formtastic #:nodoc:
     # checks to make sure the template exists
     def template_exists?(template)
       !Dir[File.join(self.class.template_root(true), "_#{template}.html.*")].blank?
+    end
+
+    # returns the first template found
+    def find_template(*choices)
+      choice = choices.find{|t| template_exists?(t)}
+      choice && File.join(self.class.template_root, choice)
     end
 
     # Returns a suitable form input for the given +method+, using the database column information
@@ -79,42 +78,21 @@ module Formtastic #:nodoc:
     #   <% end %>
     #
     def input(method, options = {})
-      options[:required] = method_required?(method) unless options.key?(:required)
-      options[:as]     ||= default_input_type(method)
+      reflection = find_reflection(method)
 
-      locals = {:as => options[:as], :id => generate_html_id(method), :builder => self}
-      locals[:msgs] = errors_for(method, options)
-      locals[:hint] = options.delete(:hint)
-      locals[:html] = options[:input_html] || {}
-      locals[:method] = method
-      locals[:options] = set_options(options)
-      locals[:required] = options[:required] ? :required : :optional
-      locals[:priority_zones] = options.delete(:priority_zones)
-      locals[:object_name] = @object.class.try(:human_name) || @object_name.to_s.send(@@label_str_method)
-      locals[:humanized_attribute_name] = humanized_attribute_name(method)
+      locals = { #defaults
+        :builder => self, :id => generate_html_id(method), :as => default_input_type(method),
+        :checked_value => '1', :unchecked_value => '0', :msgs => errors_for(method, options),
+        :required => method_required?(method), :collection => find_collection_for_column(method, options),
+        :reflection => reflection, :input_name => generate_association_input_name(method),
+        :multiple => reflection && [:has_many, :has_and_belongs_to_many].include?(reflection.macro),
+        :humanized_attribute_name => humanized_attribute_name(method), :method => method,
+        :object_name => @object.class.try(:human_name) || @object_name.to_s.send(@@label_str_method),
+        :hint => nil, :priority_zones => nil, :input_html => {}, :label_html => {}, :wrapper_html => {},
+        :input_options => {}
+      }.merge(options)
 
-      locals[:reflection] = reflection = find_reflection(method)
-      locals[:collection] = find_collection_for_column(method, options)
-      locals[:input_name] = generate_association_input_name(method)
-
-      if options[:as] == :boolean
-        locals[:checked_value] = options[:checked_value] || '1'
-        locals[:unchecked_value] = options[:unchecked_value] || '0'
-      elsif [:select, :radio].include?(options[:as])
-        if reflection && [:has_many, :has_and_belongs_to_many].include?(reflection.macro)
-          locals[:html].reverse_merge!(:multiple => true, :size => 5)
-        end
-      end
-
-      if locals[:as] == :text
-        p(locals[:html])
-      end
-
-      if template_exists?("#{options[:as]}_input")
-        template.render :partial => "#{self.class.template_root}/#{options[:as]}_input", :locals => locals
-      else
-        template.render :partial => "#{self.class.template_root}/input", :locals => locals
-      end
+      template.render :partial => find_template("#{options[:as]}_input", "input"), :locals => locals
     end
 
     # Creates an input fieldset and ol tag wrapping for use around a set of inputs.  It can be
@@ -287,21 +265,15 @@ module Formtastic #:nodoc:
 
     # Creates a button tag using a template with the same name as the button or the generic
     # _button.html.erb / _button.html.haml if no special template is found
-    def method_missing_with_button_handling(symbol, *args, &block)
+    def method_missing(symbol, *args, &block)
       if symbol.to_s =~ /^(.*)_button$/
         locals = {:object => @object, :builder => self, :button_name => $1}
         locals[:new_record]  = @object.try(:new_record?)
         locals[:object_name] = @object.class.try(:human_name) || @object_name.to_s.send(@@label_str_method)
-        if template_exists?("#{$1}_button")
-          template.render :partial => "#{self.class.template_root}/#{$1}_button", :locals => locals
-        else
-          template.render :partial => "#{self.class.template_root}/button", :locals => locals
-        end
-      else
-        method_missing_without_button_handling symbol, *args, &block
+        return template.render :partial => find_template("#{$1}_button", "button"), :locals => locals
       end
+      super
     end
-    alias_method_chain :method_missing, :button_handling
 
     # A thin wrapper around #fields_for to set :builder => Formtastic::SemanticFormBuilder
     # for nesting forms:
@@ -351,13 +323,6 @@ module Formtastic #:nodoc:
 
       fields_for_args = [options.delete(:for), options.delete(:for_options) || {}].flatten
       semantic_fields_for(*fields_for_args, &fields_for_block)
-    end
-
-    # Remove any Formtastic-specific options before passing the down options.
-    #
-    def set_options(options)
-      options.except(:value_method, :label_method, :collection, :required, :label,
-                     :as, :hint, :input_html, :label_html, :value_as_class)
     end
 
     # Determins if the attribute (eg :title) should be considered required or not.
@@ -410,7 +375,7 @@ module Formtastic #:nodoc:
       legend %= parent_child_index(html_options[:parent]) if html_options[:parent]
       locals = {:html => html_options, :legend => legend}
       block = lambda { contents } unless block_given?
-      template.render :layout => "#{self.class.template_root}/#{wrapper}_wrapper", :locals => locals, &block
+      template.render :layout => find_template("#{wrapper}_wrapper", "wrapper"), :locals => locals, &block
       nil # don't return the rendered partial - it has already been rendered
     end
 

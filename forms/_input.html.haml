@@ -1,17 +1,17 @@
-%div{:id => id, :class => "#{as} #{required} field#{' field-error' unless msgs.blank?}"}
-  = builder.label method, humanized_attribute_name
+%div{:id => id, :class => "#{as}#{' required' if required} field#{' field-error' unless msgs.blank?}"}
+  = builder.label method, humanized_attribute_name, label_html
   = case as
-    - when :string then builder.text_field input_name
-    - when :password then builder.password_field input_name
-    - when :numeric then builder.text_field input_name
-    - when :text then builder.text_area input_name
-    - when :file then builder.file_field input_name
-    - when :time then builder.time_select input_name, options, html
-    - when :date then builder.date_select input_name, options, html
-    - when :datetime then builder.datetime_select input_name, options, html
-    - when :select then builder.select input_name, collection, options, html
-    - when :time_zone then builder.time_zone_select input_name, priority_zones, options, html
-  - if required == :required
+    - when :string then builder.text_field input_name, input_html
+    - when :password then builder.password_field input_name, input_html
+    - when :numeric then builder.text_field input_name, input_html
+    - when :text then builder.text_area input_name, input_html
+    - when :file then builder.file_field input_name, input_html
+    - when :time then builder.time_select input_name, input_options, input_html
+    - when :date then builder.date_select input_name, input_options, input_html
+    - when :datetime then builder.datetime_select input_name, input_options, input_html
+    - when :select then builder.select input_name, collection, input_options, input_html.reverse_merge(:multiple => multiple, :size => multiple ? 5 : nil)
+    - when :time_zone then builder.time_zone_select input_name, priority_zones, input_options, input_html
+  - if required
     %span.required-icon.tooltip Required
   - unless msgs.blank?
     %span.error-hint= msgs.first
