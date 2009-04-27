@@ -8,6 +8,7 @@ end
 module Formtastic #:nodoc:
 
   class SemanticFormBuilder < ActionView::Helpers::FormBuilder
+    extend ActiveSupport::Memoizable
 
     @@all_fields_required_by_default = true
     @@label_str_method = :humanize
@@ -302,6 +303,7 @@ module Formtastic #:nodoc:
       choice = choices.find{|t| template_exists?(t)}
       File.join(self.class.template_root, choice || choices.first)
     end
+    memoize :find_template
 
     # Deals with :for option when it's supplied to inputs methods. Additional
     # options to be passed down to :for should be supplied using :for_options
