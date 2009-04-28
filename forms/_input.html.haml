@@ -9,7 +9,7 @@
     - when :time then builder.time_select input_name, input_options, input_html
     - when :date then builder.date_select input_name, input_options, input_html
     - when :datetime then builder.datetime_select input_name, input_options, input_html
-    - when :select then builder.select input_name, collection, input_options, input_html.reverse_merge(:multiple => multiple, :size => multiple ? 5 : nil)
+    - when :select then builder.select input_name, collection, input_options, multiple ? input_html.reverse_merge(:multiple => true, :size => 5) : input_html
     - when :time_zone then builder.time_zone_select input_name, priority_zones, input_options, input_html
   - if required
     %span.required-icon.tooltip Required
