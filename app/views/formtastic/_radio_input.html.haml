@@ -1,0 +1,10 @@
+%fieldset
+  %legend.label
+    = form.label method, label_options 
+  %ol
+    - form.radio_input_items(method, options).each do |item|
+      - content_tag :li, item.wrapper_options do
+        %label{:for => item.id}
+          = form.radio_button method, item.value
+          = item.label
+     

@@ -1,0 +1,10 @@
+- # this is overly complicated to be compatible to old formtastic versions
+- if inline_errors == :sentence
+  %p.inline-errors= errors.to_sentence.untaint 
+- elsif inline_errors == :first
+  %p.inline-errors= errors.first.untaint 
+- elsif inline_errors == :list
+  %ul.errors
+    - errors.each do |error|
+      %li= error.untaint
+

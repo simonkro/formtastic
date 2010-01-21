@@ -1,0 +1,5 @@
+- content_tag :fieldset, html_options do
+  - unless legend.blank?
+    %legend
+      %span= legend
+  %ol= yield
